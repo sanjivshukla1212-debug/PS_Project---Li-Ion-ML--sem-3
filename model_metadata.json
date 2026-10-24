@@ -1,0 +1,14 @@
+{
+  "model_name": "Random Forest",
+  "features": [
+    "SBI",
+    "AFC",
+    "LLSD",
+    "LLB",
+    "LASD"
+  ],
+  "target": "is_superionic",
+  "positive_class": 1,
+  "selection_metric": "5-fold cross-validation F1",
+  "cross_validation_f1": 0.8158915427402584
+}
