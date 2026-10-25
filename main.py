@@ -138,3 +138,12 @@ async def predict_from_cif(file: UploadFile = File(...)):
             else "Non-superionic conductor based on structural descriptors"
         )
     )
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+# Mount the static directory
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", include_in_schema=False)
+def serve_home():
+    return FileResponse("static/index.html")
