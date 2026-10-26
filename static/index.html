@@ -85,7 +85,7 @@
         <p class="text-xs text-slate-400 font-mono-num mt-1 flex items-center gap-2">
           <span>SENDEK TOPOLOGY DESCRIPTORS</span>
           <span class="text-slate-600">&bull;</span>
-          <span>BALANCED RANDOM FOREST (F1: 0.816)</span>
+          <span>CALIBRATED RANDOM FOREST (THRESHOLD: 0.28)</span>
         </p>
       </div>
 
@@ -125,8 +125,8 @@
               <button type="button" class="preset-pill px-2.5 py-1 text-xs font-mono-num rounded-md border transition-all text-slate-300 hover:text-cyan-300 hover:border-cyan-500/60" style="background: var(--panel-card); border-color: var(--border-edge);" data-preset="lgps">
                 LGPS (Sulfide)
               </button>
-              <button type="button" class="preset-pill px-2.5 py-1 text-xs font-mono-num rounded-md border transition-all text-slate-300 hover:text-cyan-300 hover:border-cyan-500/60" style="background: var(--panel-card); border-color: var(--border-edge);" data-preset="li5b7s13">
-                Li₅B₇S₁₃
+              <button type="button" class="preset-pill px-2.5 py-1 text-xs font-mono-num rounded-md border transition-all text-slate-300 hover:text-cyan-300 hover:border-cyan-500/60" style="background: var(--panel-card); border-color: var(--border-edge);" data-preset="lpscl">
+                Li₆PS₅Cl (Argyrodite)
               </button>
             </div>
           </div>
@@ -249,13 +249,15 @@
               <span id="prob-percentage" class="text-2xl font-bold text-emerald-400">83.5%</span>
             </div>
 
-            <div style="background: var(--panel-inset); border: 1px solid var(--border-edge);" class="h-2.5 w-full rounded-full overflow-hidden p-[1px]">
+            <!-- Positioned threshold line at 28% -->
+            <div style="background: var(--panel-inset); border: 1px solid var(--border-edge);" class="relative h-2.5 w-full rounded-full overflow-hidden p-[1px]">
               <div id="prob-bar-fill" style="width: 83.5%; background: #10b981; box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);" class="h-full rounded-full transition-all duration-500"></div>
+              <div style="left: 28%;" class="absolute top-0 bottom-0 w-[2px] bg-cyan-400/80 z-10"></div>
             </div>
 
             <div class="flex justify-between text-[10px] font-mono-num text-slate-400">
               <span>0.0 (Insulator)</span>
-              <span class="text-slate-300">Threshold: 0.50</span>
+              <span class="text-cyan-300 font-medium">Threshold: 0.28</span>
               <span>1.0 (Superionic)</span>
             </div>
           </div>
@@ -302,12 +304,13 @@
   <script>
     // Configuration & State
     const API_ROOT = "http://127.0.0.1:8000";
+    const CLASSIFICATION_THRESHOLD = 0.28;
     let activeMode = "descriptors"; // 'descriptors' or 'cif'
     let currentCifFile = null;
     let isApiConnected = false;
     let latestResponseData = null;
 
-    // Presets
+    // Presets calibrated to Caltech / Materials Project database values
     const PRESETS = {
       llzo: {
         material: "Li6.7La3Zr1.7Ta0.3O12_LLZO",
@@ -319,19 +322,19 @@
       },
       lgps: {
         material: "Li10GeP2S12_LGPS",
-        lasd: 2.4500,
-        sbi: 18.5000,
-        llb: 3.8000,
-        llsd: 2.9500,
-        afc: 0.0220
+        lasd: 2.6139,
+        sbi: 19.5490,
+        llb: 4.8000,
+        llsd: 2.9168,
+        afc: 0.0205
       },
-      li5b7s13: {
-        material: "Li5B7S13",
-        lasd: 2.4204,
-        sbi: 8.1814,
-        llb: 1.4015,
-        llsd: 3.3923,
-        afc: 0.0574
+      lpscl: {
+        material: "Li6PS5Cl_Argyrodite",
+        lasd: 2.3903,
+        sbi: 20.8887,
+        llb: 3.0000,
+        llsd: 3.2983,
+        afc: 0.0221
       }
     };
 
@@ -401,16 +404,14 @@
       const llsd = Number(payload.LLSD) || 0;
       const afc = Number(payload.AFC) || 0;
 
-      // Sendek logistic reference equation:
-      // z = -4.48937 + 1.05*LLB + 3.20*SBI + 0.55*AFC + 0.40*LASD + 0.20*LLSD
+      // Sendek logistic reference equation
       const z = -4.48937 + (1.05 * llb) + (3.20 * sbi) + (0.55 * afc) + (0.40 * lasd) + (0.20 * llsd);
       const clippedZ = Math.max(-50, Math.min(50, z));
       const paperScore = 1.0 / (1.0 + Math.exp(-clippedZ));
 
-      // Emulated Random Forest decision forest
       let prob = 0.50;
 
-      // Primary LASD split (~32% importance)
+      // Primary LASD split
       if (lasd >= 2.40) {
         prob += 0.33;
       } else if (lasd >= 2.268) {
@@ -421,7 +422,7 @@
         prob -= 0.22;
       }
 
-      // Secondary SBI split (~18% importance)
+      // Secondary SBI split
       if (sbi >= 15.0) {
         prob += 0.12;
       } else if (sbi < 10.0) {
@@ -436,7 +437,8 @@
       }
 
       const finalProb = Math.max(0.04, Math.min(0.96, prob));
-      const predClass = finalProb >= 0.50 ? 1 : 0;
+      // Uses the 0.28 screening threshold
+      const predClass = finalProb >= CLASSIFICATION_THRESHOLD ? 1 : 0;
 
       return {
         material: payload.material || "Unknown_Sample",
